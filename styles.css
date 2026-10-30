@@ -1208,3 +1208,237 @@
             background: #c0392b;
         }
 
+        /* ---------- Ajustements mobile ---------- */
+        @media (max-width: 700px) {
+            html,
+            body {
+                width: 100%;
+                min-height: 100%;
+                overscroll-behavior: none;
+            }
+
+            #map {
+                position: fixed;
+                height: 100vh;
+                height: 100dvh;
+            }
+
+            #rightnav {
+                top: max(10px, env(safe-area-inset-top));
+                right: max(10px, env(safe-area-inset-right));
+                gap: 7px;
+            }
+
+            .nav-btn {
+                width: 58px;
+                min-height: 58px;
+                padding: 6px 3px;
+                font-size: 11px;
+                touch-action: manipulation;
+            }
+
+            .nav-btn span {
+                margin-bottom: 1px;
+                font-size: 20px;
+            }
+
+            #sidebarToggle {
+                top: max(10px, env(safe-area-inset-top));
+                left: max(10px, env(safe-area-inset-left));
+                width: 46px;
+                height: 46px;
+                touch-action: manipulation;
+            }
+
+            #sidebar {
+                top: calc(env(safe-area-inset-top) + 62px);
+                right: calc(env(safe-area-inset-right) + 76px);
+                left: max(10px, env(safe-area-inset-left));
+                max-height: calc(100vh - 74px - env(safe-area-inset-top));
+                max-height: calc(100dvh - 74px - env(safe-area-inset-top));
+                padding: 12px;
+                border-radius: 10px;
+                overscroll-behavior: contain;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            #sidebar h2 {
+                padding-right: 2px;
+                font-size: 19px;
+            }
+
+            #userbar {
+                padding: 9px;
+            }
+
+            .btn,
+            .popup-action,
+            .type-add .btn,
+            .modal-actions .btn {
+                min-height: 42px;
+                touch-action: manipulation;
+            }
+
+            .btn.small {
+                min-height: 38px;
+            }
+
+            .filter-item {
+                min-height: 38px;
+                padding: 5px 0;
+            }
+
+            .filter-item input {
+                width: 18px;
+                height: 18px;
+            }
+
+            #gearPage {
+                padding: calc(env(safe-area-inset-top) + 82px)
+                         calc(env(safe-area-inset-right) + 12px)
+                         calc(env(safe-area-inset-bottom) + 24px)
+                         calc(env(safe-area-inset-left) + 12px) !important;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .gear-header {
+                align-items: stretch;
+                flex-direction: column;
+                gap: 10px;
+                margin-bottom: 14px;
+            }
+
+            #gearPage h1 {
+                font-size: 22px;
+                line-height: 1.2;
+            }
+
+            .gear-grid {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 10px;
+            }
+
+            .gear-card,
+            .panel {
+                min-width: 0;
+                padding: 12px;
+            }
+
+            .detail-head {
+                align-items: flex-start;
+                gap: 9px;
+            }
+
+            .detail-head > svg {
+                flex: none;
+            }
+
+            .detail-title h2 {
+                overflow-wrap: anywhere;
+            }
+
+            .deploy {
+                padding: 10px;
+            }
+
+            .deploy-top {
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .deploy-top .btn {
+                width: 100%;
+            }
+
+            .spec-table {
+                font-size: 12px;
+                overflow-wrap: anywhere;
+            }
+
+            .spec-table td {
+                padding: 7px 5px;
+            }
+
+            .compact-material-popup .leaflet-popup-content {
+                width: min(220px, calc(100vw - 64px)) !important;
+            }
+
+            .compact-material-popup.edit .leaflet-popup-content {
+                width: min(280px, calc(100vw - 48px)) !important;
+            }
+
+            .leaflet-popup-content-wrapper {
+                max-width: calc(100vw - 32px);
+            }
+
+            .modal-card {
+                max-height: calc(100vh - 30px);
+                max-height: calc(100dvh - 30px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+                padding: 15px;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .modal-actions {
+                gap: 7px;
+            }
+
+            .modal-actions .btn {
+                flex: 1 1 130px;
+            }
+
+            .spec-row {
+                align-items: stretch;
+            }
+
+            #toast {
+                bottom: calc(14px + env(safe-area-inset-bottom));
+                width: max-content;
+                max-width: calc(100vw - 28px);
+                box-sizing: border-box;
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 380px) {
+            #sidebar {
+                right: calc(env(safe-area-inset-right) + 70px);
+                padding: 10px;
+            }
+
+            #sidebarToggle {
+                width: 44px;
+                height: 44px;
+            }
+
+            .nav-btn {
+                width: 54px;
+                min-height: 54px;
+                font-size: 10px;
+            }
+
+            .type-row {
+                gap: 5px;
+                padding: 6px;
+            }
+
+            .ed-row,
+            .spec-row {
+                gap: 6px;
+            }
+
+            .auth-card {
+                padding: 18px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                transition-duration: .01ms !important;
+                animation-duration: .01ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
+
