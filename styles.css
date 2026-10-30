@@ -1224,13 +1224,14 @@
             }
 
             #rightnav {
+                flex-direction: row;
                 top: max(10px, env(safe-area-inset-top));
                 right: max(10px, env(safe-area-inset-right));
                 gap: 7px;
             }
 
             .nav-btn {
-                width: 58px;
+                width: 56px;
                 min-height: 58px;
                 padding: 6px 3px;
                 font-size: 11px;
@@ -1251,11 +1252,11 @@
             }
 
             #sidebar {
-                top: calc(env(safe-area-inset-top) + 62px);
+                top: calc(env(safe-area-inset-top) + 70px);
                 right: calc(env(safe-area-inset-right) + 76px);
                 left: max(10px, env(safe-area-inset-left));
-                max-height: calc(100vh - 74px - env(safe-area-inset-top));
-                max-height: calc(100dvh - 74px - env(safe-area-inset-top));
+                max-height: calc(100vh - 82px - env(safe-area-inset-top));
+                max-height: calc(100dvh - 82px - env(safe-area-inset-top));
                 padding: 12px;
                 border-radius: 10px;
                 overscroll-behavior: contain;
