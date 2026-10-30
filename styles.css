@@ -1224,7 +1224,9 @@
             }
 
             #rightnav {
-                flex-direction: row;
+                display: grid;
+                grid-auto-flow: column;
+                grid-template-columns: repeat(2, 56px);
                 top: max(10px, env(safe-area-inset-top));
                 right: max(10px, env(safe-area-inset-right));
                 gap: 7px;
