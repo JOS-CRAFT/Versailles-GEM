@@ -74,10 +74,10 @@
         }
 
         #sidebarToggle {
-            display: none;
+            display: block;
             position: absolute;
             top: 10px;
-            left: 10px;
+            left: 350px;
             z-index: 1001;
             width: 40px;
             height: 40px;
@@ -649,6 +649,129 @@
             text-transform: uppercase;
         }
 
+        .bay-contents {
+            margin: 7px 0;
+            padding: 8px;
+            border-radius: 7px;
+            background: #f1f5f9;
+            color: #334155;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .bay-contents.empty {
+            color: #64748b;
+        }
+
+        .bay-contents ul {
+            margin: 4px 0 0;
+            padding-left: 16px;
+        }
+
+        .bay-machine-editor {
+            margin-top: 7px;
+            padding: 7px;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            background: #f8fafc;
+        }
+
+        .bay-machine-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 48px 28px;
+            gap: 5px;
+            margin-bottom: 6px;
+        }
+
+        .bay-machine-row .popup-input {
+            min-width: 0;
+            padding: 6px 4px;
+            font-size: 11px;
+        }
+
+        .bay-machine-row .cat-del {
+            width: 28px;
+            height: 32px;
+        }
+
+        .bay-add-machine {
+            width: 100%;
+            margin-top: 2px;
+        }
+
+        .bay-help {
+            color: #64748b;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .wifi-popup {
+            margin: 7px 0;
+            padding: 8px;
+            border-radius: 7px;
+            background: #eff6ff;
+            color: #1e3a5f;
+            font-size: 11px;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+
+        .wifi-device-editor {
+            margin-top: 7px;
+            padding: 7px;
+            border: 1px solid #bfdbfe;
+            border-radius: 7px;
+            background: #eff6ff;
+        }
+
+        .wifi-password-field {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .wifi-device-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 10px;
+        }
+
+        .wifi-device-card {
+            min-width: 0;
+            padding: 12px;
+            border: 1px solid #bfdbfe;
+            border-left: 5px solid #2980b9;
+            border-radius: 10px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
+        }
+
+        .wifi-device-main {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .wifi-device-ssid {
+            color: #1e293b;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .wifi-device-id,
+        .wifi-password-status {
+            margin-top: 4px;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .wifi-device-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            margin-top: 10px;
+        }
+
         .popup-comment {
             display: -webkit-box;
             margin-bottom: 7px;
@@ -792,6 +915,36 @@
             justify-content: space-between;
             gap: 10px;
             margin-bottom: 18px;
+        }
+
+        .gear-kind-section {
+            margin: 0 0 20px;
+            padding: 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, .55);
+        }
+
+        .gear-kind-section.machines-section {
+            border-color: #cbd5e1;
+            background: #e8eef5;
+        }
+
+        .gear-kind-section.wifi-section {
+            border-color: #bfdbfe;
+            background: #eaf3ff;
+        }
+
+        .gear-kind-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .gear-kind-header h2 {
+            margin: 0;
         }
 
         .gear-grid {
@@ -1344,6 +1497,35 @@
                 padding: 10px;
             }
 
+            .gear-kind-section {
+                margin-bottom: 14px;
+                padding: 10px;
+            }
+
+            .gear-kind-header {
+                align-items: stretch;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .wifi-device-list {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .wifi-device-actions .btn {
+                flex: 1 1 120px;
+            }
+
+            .bay-machine-row {
+                grid-template-columns: minmax(0, 1fr) 48px 32px;
+                gap: 4px;
+            }
+
+            .bay-machine-row .cat-del {
+                width: 32px;
+                height: 38px;
+            }
+
             .deploy-top {
                 align-items: flex-start;
                 flex-wrap: wrap;
@@ -1444,4 +1626,3 @@
                 animation-iteration-count: 1 !important;
             }
         }
-

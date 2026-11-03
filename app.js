@@ -25,7 +25,7 @@
 
         /* ============================================================
            Marqueurs
-           - la FORME      = la catégorie (6 formes = 6 catégories max)
+           - la FORME      = la catégorie
            - la COULEUR    = le type d'enceinte (+ son code écrit dedans)
            - le "✓ vert"   = point récupéré (marqueur estompé)
            - contour en pointillés = point sans catégorie
@@ -36,12 +36,15 @@
             diamond:  '<polygon points="20,4 36,20 20,36 4,20"/>',
             triangle: '<polygon points="20,6 35,33 5,33"/>',
             hexagon:  '<polygon points="20,5 33,12.5 33,27.5 20,35 7,27.5 7,12.5"/>',
-            octagon:  '<polygon points="14,6 26,6 34,14 34,26 26,34 14,34 6,26 6,14"/>'
+            octagon:  '<polygon points="14,6 26,6 34,14 34,26 26,34 14,34 6,26 6,14"/>',
+            rack:     '<rect x="10" y="4" width="20" height="32" rx="2"/><path d="M14 12h12M14 20h12M14 28h12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>',
+            wifi:     '<circle cx="20" cy="31" r="2.5"/><path d="M14 25a8.5 8.5 0 0 1 12 0M10 20a14.2 14.2 0 0 1 20 0M6 15a20 20 0 0 1 28 0" fill="none" stroke="white" stroke-width="2.8" stroke-linecap="round"/>'
         };
 
         const SHAPE_NAMES = {
             circle: "Cercle", square: "Carré", diamond: "Losange",
-            triangle: "Triangle", hexagon: "Hexagone", octagon: "Octogone"
+            triangle: "Triangle", hexagon: "Hexagone", octagon: "Octogone",
+            rack: "Baie", wifi: "Wi-Fi"
         };
 
         const SHAPE_KEYS = Object.keys(SHAPES);
@@ -136,7 +139,9 @@
         let profile = null;       // { id, display_name, is_admin, hidden_categories, hidden_types }
         let locations = [];       // lignes de la table locations
         let categories = [];      // lignes de la table categories
-        let speakerTypes = [];    // lignes de la table speaker_types (profils d'enceintes)
+        let speakerTypes = [];    // profils d'enceintes et de machines
+        let wifiDevices = [];     // bornes Wi-Fi visibles pour les utilisateurs connectés
+        let wifiSecrets = {};     // mots de passe chargés uniquement pour les administrateurs
         const markers = {};       // id du point -> marqueur Leaflet
         let channel = null;       // canal temps réel
         let editMode = false;
@@ -148,7 +153,20 @@
 
         const getSite = id => locations.find(l => l.id === id) || null;
         const getCategory = site => categories.find(c => c.id === site.category_id) || null;
-        const getSpeakerType = site => speakerTypes.find(t => t.id === site.speaker_type_id) || null;
+        const isMachineType = type => type && type.equipment_kind === "machine";
+        const speakerProfiles = () => speakerTypes.filter(t => !isMachineType(t));
+        const machineProfiles = () => speakerTypes.filter(isMachineType);
+        const getSpeakerType = site => speakerTypes.find(t => t.id === site.speaker_type_id && !isMachineType(t)) || null;
+        const getMachineType = id => speakerTypes.find(t => t.id === id && isMachineType(t)) || null;
+        const isBay = site => {
+            const category = getCategory(site);
+            return !!category && category.shape === "rack";
+        };
+        const isWifiSite = site => {
+            const category = getCategory(site);
+            return !!category && category.shape === "wifi";
+        };
+        const bayContents = site => Array.isArray(site && site.bay_machines) ? site.bay_machines : [];
         const hiddenCats = () => new Set((profile && profile.hidden_categories) || []);
         const hiddenTypes = () => new Set((profile && profile.hidden_types) || []);
         const isAdmin = () => !!(profile && profile.is_admin);
@@ -173,6 +191,43 @@
             const type = getSpeakerType(site);
             const qty = site.quantity != null ? "× " + site.quantity : "";
             return [type ? type.name : "", qty].filter(Boolean).join(" ");
+        }
+
+        function bayContentsHtml(site) {
+            const contents = bayContents(site).map(item => {
+                const type = getMachineType(item.machine_type_id);
+                const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+                const name = type ? escapeHtml(type.name) : "Profil de machine indisponible";
+                return `<li>${name}${quantity > 1 ? ` <strong>× ${quantity}</strong>` : ""}</li>`;
+            });
+
+            if (!contents.length) return `<div class="bay-contents empty">Aucune machine renseignée dans cette baie.</div>`;
+            return `<div class="bay-contents"><strong>Machines dans la baie</strong><ul>${contents.join("")}</ul></div>`;
+        }
+
+        function bayContentsSummary(site) {
+            return bayContents(site).map(item => {
+                const type = getMachineType(item.machine_type_id);
+                const name = type ? type.name : "Profil indisponible";
+                return `${name}${item.quantity > 1 ? ` × ${item.quantity}` : ""}`;
+            }).join(" · ");
+        }
+
+        const getWifiDevice = id => wifiDevices.find(device => device.id === id) || null;
+
+        function wifiDevicePopupHtml(site) {
+            const device = getWifiDevice(site.wifi_device_id);
+            if (!device) return `<div class="wifi-popup">Aucune borne Wi-Fi associée à ce point.</div>`;
+
+            return `
+                <div class="wifi-popup">
+                    <div><strong>SSID :</strong> ${escapeHtml(device.ssid)}</div>
+                    <div><strong>ID :</strong> ${escapeHtml(device.device_code)}</div>
+                    ${isAdmin() && wifiSecrets[device.id] != null
+                        ? `<div><strong>Mot de passe :</strong> ${escapeHtml(wifiSecrets[device.id])}</div>`
+                        : ""}
+                </div>
+            `;
         }
 
         const safeUrl = url => /^https?:\/\//i.test(url || "") ? url : "";
@@ -327,14 +382,22 @@
 
         // Vérifie que le script SQL de mise à jour a bien été exécuté
         function checkSchema() {
-            const outdated =
+            const materialSchemaOutdated =
                 (locations.length && !("comment" in locations[0])) ||
                 (categories.length && !("shape" in categories[0])) ||
                 (speakerTypes.length && !("color" in speakerTypes[0]));
+            const baySchemaOutdated =
+                (locations.length && !("bay_machines" in locations[0])) ||
+                (speakerTypes.length && !("equipment_kind" in speakerTypes[0]));
+            const wifiSchemaOutdated = locations.length && !("wifi_device_id" in locations[0]);
 
-            if (outdated) {
-                const err = new Error("La base de données n'est pas à jour : exécute supabase-update-materiel.sql " +
-                    "dans Supabase (SQL Editor), puis clique sur Réessayer.");
+            if (materialSchemaOutdated || baySchemaOutdated || wifiSchemaOutdated) {
+                const scripts = [
+                    materialSchemaOutdated ? "supabase-update-materiel.sql" : "",
+                    baySchemaOutdated ? "supabase-update-baies.sql" : "",
+                    wifiSchemaOutdated ? "supabase-update-wifi.sql" : ""
+                ].filter(Boolean).join(" puis ");
+                const err = new Error(`La base de données n'est pas à jour : exécute ${scripts} dans Supabase (SQL Editor), puis clique sur Réessayer.`);
                 err.isSchema = true;
                 throw err;
             }
@@ -362,6 +425,8 @@
 
                 profile.hidden_categories = profile.hidden_categories || [];
                 profile.hidden_types = profile.hidden_types || [];
+
+                await loadWifiData();
 
                 document.body.classList.toggle("admin", profile.is_admin);
                 document.getElementById("userName").textContent = profile.display_name;
@@ -402,6 +467,30 @@
             locations = l.data;
         }
 
+        async function loadWifiData() {
+            const { data, error } = await sb.from("wifi_devices")
+                .select("id, ssid, device_code")
+                .order("created_at");
+            if (error) {
+                const schemaError = new Error("La base de données Wi-Fi n'est pas à jour : exécute supabase-update-wifi.sql dans Supabase (SQL Editor), puis clique sur Réessayer.");
+                schemaError.isSchema = true;
+                throw schemaError;
+            }
+            wifiDevices = data || [];
+
+            wifiSecrets = {};
+            if (profile && profile.is_admin) {
+                const { data: secrets, error: secretError } = await sb.from("wifi_device_secrets")
+                    .select("wifi_device_id, password");
+                if (secretError) {
+                    const schemaError = new Error("La table privée des mots de passe Wi-Fi n'est pas prête : exécute supabase-update-wifi.sql dans Supabase (SQL Editor), puis clique sur Réessayer.");
+                    schemaError.isSchema = true;
+                    throw schemaError;
+                }
+                wifiSecrets = Object.fromEntries((secrets || []).map(row => [row.wifi_device_id, row.password]));
+            }
+        }
+
         function stopApp() {
             if (channel) {
                 sb.removeChannel(channel);
@@ -418,6 +507,8 @@
             locations = [];
             categories = [];
             speakerTypes = [];
+            wifiDevices = [];
+            wifiSecrets = {};
             profile = null;
             me = null;
             currentUserId = null;
@@ -458,6 +549,15 @@
                     if (payload.eventType === "DELETE") removeSpeakerTypeLocal(payload.old.id);
                     else upsertSpeakerTypeLocal(payload.new);
                 })
+                .on("postgres_changes", { event: "*", schema: "public", table: "wifi_devices" }, payload => {
+                    if (payload.eventType === "DELETE") removeWifiDeviceLocal(payload.old.id);
+                    else upsertWifiDeviceLocal(payload.new);
+                })
+                .on("postgres_changes", { event: "*", schema: "public", table: "wifi_device_secrets" }, payload => {
+                    if (!isAdmin()) return;
+                    if (payload.eventType === "DELETE") removeWifiSecretLocal(payload.old.wifi_device_id);
+                    else upsertWifiSecretLocal(payload.new);
+                })
                 .subscribe(status => {
                     if (status === "SUBSCRIBED") {
                         setLive(true);
@@ -473,6 +573,7 @@
         async function reloadData() {
             try {
                 await loadData();
+                await loadWifiData();
                 rebuildMarkers();
                 refreshAll(false);
             } catch (err) {
@@ -562,6 +663,31 @@
             refreshAll(false);
         }
 
+        function upsertWifiDeviceLocal(row) {
+            const index = wifiDevices.findIndex(device => device.id === row.id);
+            if (index >= 0) wifiDevices[index] = { ...wifiDevices[index], ...row };
+            else wifiDevices.push(row);
+            wifiDevices.sort((a, b) => String(a.ssid).localeCompare(String(b.ssid), "fr"));
+            refreshAll(false);
+        }
+
+        function removeWifiDeviceLocal(id) {
+            wifiDevices = wifiDevices.filter(device => device.id !== id);
+            delete wifiSecrets[id];
+            locations.forEach(site => { if (site.wifi_device_id === id) site.wifi_device_id = null; });
+            refreshAll(false);
+        }
+
+        function upsertWifiSecretLocal(row) {
+            wifiSecrets[row.wifi_device_id] = row.password;
+            if (page === "gear") renderGear(true);
+        }
+
+        function removeWifiSecretLocal(id) {
+            delete wifiSecrets[id];
+            if (page === "gear") renderGear(true);
+        }
+
         /* ============================================================
            Popups & marqueurs
            ============================================================ */
@@ -627,6 +753,8 @@
                             <span class="inline-icon">${catPreview(cat, 16)}</span>
                             ${escapeHtml(cat.name)}
                         </div>` : ''}
+                    ${isBay(site) ? bayContentsHtml(site) : ''}
+                    ${isWifiSite(site) ? wifiDevicePopupHtml(site) : ''}
                     ${site.comment ? `<div class="popup-comment">💬 ${escapeHtml(site.comment)}</div>` : ''}
                     ${meta}
                     <div class="popup-row" style="margin-top:0;">
@@ -647,9 +775,19 @@
                 <option value="${c.id}" ${c.id === site.category_id ? 'selected' : ''}>${escapeHtml(c.name)} (${SHAPE_NAMES[c.shape] || ''})</option>
             `).join("");
 
-            const typeOptions = speakerTypes.map(t => `
+            const typeOptions = speakerProfiles().map(t => `
                 <option value="${t.id}" ${t.id === site.speaker_type_id ? 'selected' : ''}>${escapeHtml(t.name)}</option>
             `).join("");
+
+            const machineOptions = machineProfiles().map(t => `
+                <option value="${t.id}">${escapeHtml(t.name)}${typeSubtitle(t) ? ` — ${escapeHtml(typeSubtitle(t))}` : ""}</option>
+            `).join("");
+            const machineRows = bayContents(site).map(item => bayMachineRowHtml(item, machineOptions)).join("");
+            const wifiOptions = wifiDevices.map(device => `
+                <option value="${device.id}" ${device.id === site.wifi_device_id ? 'selected' : ''}>${escapeHtml(device.ssid)} — ${escapeHtml(device.device_code)}</option>
+            `).join("");
+            const baySite = isBay(site);
+            const wifiSite = isWifiSite(site);
 
             return `
                 <div class="popup-header edit">
@@ -662,22 +800,39 @@
                            value="${escapeHtml(site.name)}"
                            onkeydown="if(event.key==='Enter') saveSite('${site.id}')">
 
-                    <label class="popup-label" for="edit-speaker">Type d'enceinte / quantité</label>
-                    <div class="popup-two">
-                        <select class="popup-input" id="edit-speaker">
-                            <option value="">Aucun type</option>
-                            ${typeOptions}
-                        </select>
-                        <input class="popup-input" id="edit-qty" type="number" min="0" step="1"
-                               placeholder="Qté" value="${site.quantity != null ? site.quantity : ''}"
-                               onkeydown="if(event.key==='Enter') saveSite('${site.id}')">
+                    <div id="speakerFields" style="display:${baySite || wifiSite ? 'none' : 'block'};">
+                        <label class="popup-label" for="edit-speaker">Type d'enceinte / quantité</label>
+                        <div class="popup-two">
+                            <select class="popup-input" id="edit-speaker">
+                                <option value="">Aucun type</option>
+                                ${typeOptions}
+                            </select>
+                            <input class="popup-input" id="edit-qty" type="number" min="0" step="1"
+                                   placeholder="Qté" value="${site.quantity != null ? site.quantity : ''}"
+                                   onkeydown="if(event.key==='Enter') saveSite('${site.id}')">
+                        </div>
                     </div>
 
                     <label class="popup-label" for="edit-cat">Catégorie</label>
-                    <select class="popup-input" id="edit-cat">
+                    <select class="popup-input" id="edit-cat" onchange="toggleCategoryEquipmentEditor()">
                         <option value="">Sans catégorie</option>
                         ${catOptions}
                     </select>
+
+                    <div id="bayMachineEditor" class="bay-machine-editor" style="display:${baySite ? 'block' : 'none'};">
+                        <label class="popup-label">Machines présentes dans la baie</label>
+                        <div id="bayMachineRows">${machineRows}</div>
+                        ${machineProfiles().length
+                            ? `<button type="button" class="btn secondary small bay-add-machine" onclick="addBayMachineRow()">＋ Ajouter une machine</button>`
+                            : `<div class="bay-help">Créez d'abord les profils de machines dans Matériel.</div>`}
+                    </div>
+
+                    <div id="wifiDeviceEditor" class="wifi-device-editor" style="display:${wifiSite ? 'block' : 'none'};">
+                        <label class="popup-label" for="edit-wifi-device">Borne Wi-Fi associée</label>
+                        ${wifiDevices.length
+                            ? `<select class="popup-input" id="edit-wifi-device"><option value="">Aucune borne</option>${wifiOptions}</select>`
+                            : `<div class="bay-help">Créez d'abord une borne dans Matériel.</div><select id="edit-wifi-device" style="display:none"><option value=""></option></select>`}
+                    </div>
 
                     <label class="popup-label" for="edit-type">Description / notes</label>
                     <input class="popup-input" id="edit-type" type="text"
@@ -691,6 +846,50 @@
                     <div class="popup-coords">${site.lat.toFixed(5)}, ${site.lng.toFixed(5)}</div>
                 </div>
             `;
+        }
+
+        function bayMachineRowHtml(item = {}, options = machineProfiles().map(t =>
+            `<option value="${t.id}">${escapeHtml(t.name)}${typeSubtitle(t) ? ` — ${escapeHtml(typeSubtitle(t))}` : ""}</option>`
+        ).join("")) {
+            const selectedType = item.machine_type_id || "";
+            return `
+                <div class="bay-machine-row">
+                    <select class="popup-input bay-machine-type" aria-label="Machine dans la baie">
+                        <option value="">Choisir une machine</option>
+                        ${options.replace(`value="${selectedType}"`, `value="${selectedType}" selected`)}
+                    </select>
+                    <input class="popup-input bay-machine-quantity" type="number" min="1" step="1"
+                           value="${Math.max(1, parseInt(item.quantity, 10) || 1)}" aria-label="Quantité">
+                    <button type="button" class="cat-del" aria-label="Retirer cette machine" onclick="this.closest('.bay-machine-row').remove()">✕</button>
+                </div>
+            `;
+        }
+
+        function toggleCategoryEquipmentEditor() {
+            const category = categories.find(c => c.id === document.getElementById("edit-cat").value);
+            const isBayCategory = !!category && category.shape === "rack";
+            const isWifiCategory = !!category && category.shape === "wifi";
+            document.getElementById("bayMachineEditor").style.display = isBayCategory ? "block" : "none";
+            document.getElementById("wifiDeviceEditor").style.display = isWifiCategory ? "block" : "none";
+            document.getElementById("speakerFields").style.display = isBayCategory || isWifiCategory ? "none" : "block";
+        }
+
+        function addBayMachineRow() {
+            const container = document.getElementById("bayMachineRows");
+            if (!container || !machineProfiles().length) return;
+            container.insertAdjacentHTML("beforeend", bayMachineRowHtml());
+        }
+
+        function bayMachinesFromEditor() {
+            const rows = [...document.querySelectorAll("#bayMachineRows .bay-machine-row")];
+            const quantities = new Map();
+            rows.forEach(row => {
+                const machineTypeId = row.querySelector(".bay-machine-type").value;
+                if (!machineTypeId) return;
+                const quantity = Math.max(1, parseInt(row.querySelector(".bay-machine-quantity").value, 10) || 1);
+                quantities.set(machineTypeId, (quantities.get(machineTypeId) || 0) + quantity);
+            });
+            return [...quantities].map(([machine_type_id, quantity]) => ({ machine_type_id, quantity }));
         }
 
         function popupContent(siteId) {
@@ -797,8 +996,8 @@
            ============================================================ */
         function isVisible(site) {
             const catKey = getCategory(site) ? site.category_id : "none";
-            const typeKey = getSpeakerType(site) ? site.speaker_type_id : "none";
-            return !hiddenCats().has(catKey) && !hiddenTypes().has(typeKey);
+            const typeKey = isBay(site) || isWifiSite(site) ? null : (getSpeakerType(site) ? site.speaker_type_id : "none");
+            return !hiddenCats().has(catKey) && (!typeKey || !hiddenTypes().has(typeKey));
         }
 
         function applyFilter() {
@@ -830,7 +1029,8 @@
         function renderFilter() {
             const panel = document.getElementById("filterPanel");
             const hasCats = categories.length > 0;
-            const hasTypes = speakerTypes.length > 0;
+            const speakers = speakerProfiles();
+            const hasTypes = speakers.length > 0;
 
             panel.style.display = (hasCats || hasTypes) ? "block" : "none";
 
@@ -856,14 +1056,14 @@
             document.getElementById("filterTypesTitle").style.display = hasTypes ? "block" : "none";
 
             const ht = hiddenTypes();
-            const typeItems = speakerTypes.map(t => ({
+            const typeItems = speakers.map(t => ({
                 key: t.id,
                 name: t.name,
                 count: locations.filter(s => s.speaker_type_id === t.id).length,
                 visual: typeBadge(t, 22)
             }));
 
-            const noType = locations.filter(s => !getSpeakerType(s)).length;
+            const noType = locations.filter(s => !isBay(s) && !isWifiSite(s) && !getSpeakerType(s)).length;
             if (hasTypes && (noType > 0 || ht.has("none"))) {
                 typeItems.push({ key: "none", name: "Sans type", count: noType, visual: typeBadge(null, 22) });
             }
@@ -923,7 +1123,12 @@
 
         function zoneHtml(site) {
             const type = getSpeakerType(site);
-            const line = speakerLine(site);
+            const wifiDevice = getWifiDevice(site.wifi_device_id);
+            const line = isBay(site)
+                ? (bayContentsSummary(site) || "Aucune machine renseignée")
+                : isWifiSite(site)
+                    ? (wifiDevice ? `${wifiDevice.ssid} · ${wifiDevice.device_code}` : "Aucune borne associée")
+                    : speakerLine(site);
 
             return `
                 <div class="zone ${site.recovered ? 'done' : ''}"
@@ -933,7 +1138,7 @@
                         ${siteIconSvg(site, 36, { shadow: true })}
                         <strong>${escapeHtml(site.name)}</strong>
                     </div>
-                    ${line ? `<div class="zone-speaker">${escapeHtml(line)}</div>` : ''}
+                    ${line ? `<div class="zone-speaker">${isBay(site) ? "🧰 " : isWifiSite(site) ? "📶 " : ""}${escapeHtml(line)}</div>` : ''}
                     ${site.type ? `<div class="zone-desc">${escapeHtml(site.type)}</div>` : ''}
                     <div style="margin-top:3px;">${statusHtml(site)}</div>
                 </div>
@@ -1037,10 +1242,10 @@
             // Si les filtres de l'utilisateur masquent ce point, on les ajuste
             if (!isVisible(site)) {
                 const catKey = getCategory(site) ? site.category_id : "none";
-                const typeKey = getSpeakerType(site) ? site.speaker_type_id : "none";
+                const typeKey = isBay(site) || isWifiSite(site) ? null : (getSpeakerType(site) ? site.speaker_type_id : "none");
 
                 profile.hidden_categories = profile.hidden_categories.filter(k => k !== catKey);
-                profile.hidden_types = profile.hidden_types.filter(k => k !== typeKey);
+                if (typeKey) profile.hidden_types = profile.hidden_types.filter(k => k !== typeKey);
                 saveHidden();
                 refreshAll(false);
                 toast("Filtres ajustés pour afficher ce point");
@@ -1078,9 +1283,23 @@
         });
 
         /* ============================================================
-           Profils d'enceintes : affichage
+           Profils de matériel : affichage
            ============================================================ */
         function typeStats(typeId) {
+            const type = speakerTypes.find(t => t.id === typeId);
+            if (isMachineType(type)) {
+                const installations = locations.flatMap(site => bayContents(site)
+                    .filter(item => item.machine_type_id === typeId)
+                    .map(item => ({ site, quantity: Math.max(1, parseInt(item.quantity, 10) || 1) })));
+                const bays = [...new Set(installations.map(item => item.site))];
+                return {
+                    sites: bays,
+                    points: bays.length,
+                    qty: installations.reduce((sum, item) => sum + item.quantity, 0),
+                    recovered: bays.filter(site => site.recovered).length
+                };
+            }
+
             const sites = locations.filter(s => s.speaker_type_id === typeId);
             return {
                 sites,
@@ -1169,10 +1388,10 @@
         }
 
         function gearListHtml() {
-            const cards = speakerTypes.map(type => {
+            const card = (type, kind) => {
                 const st = typeStats(type.id);
                 return `
-                    <div class="gear-card" style="border-top-color:${type.color}" onclick="openGearType('${type.id}')">
+                    <div class="gear-card ${kind === 'machine' ? 'machine-card' : 'speaker-card'}" style="border-top-color:${type.color}" onclick="openGearType('${type.id}')">
                         <div class="gear-card-head">
                             ${typeBadge(type, 46)}
                             <div>
@@ -1181,30 +1400,163 @@
                             </div>
                         </div>
                         <div class="gear-stats">
-                            <span><strong>${st.qty}</strong> enceinte(s)</span>
-                            <span><strong>${st.points}</strong> point(s)</span>
+                            <span><strong>${st.qty}</strong> ${kind === 'machine' ? 'machine(s)' : 'enceinte(s)'}</span>
+                            <span><strong>${st.points}</strong> ${kind === 'machine' ? 'baie(s)' : 'point(s)'}</span>
                             <span><strong>${st.recovered}/${st.points}</strong> récupéré(s)</span>
                         </div>
                     </div>
                 `;
-            }).join("");
+            };
 
-            const addButton = isAdmin()
-                ? `<button class="btn" onclick="openTypeEditor(null)">＋ Nouveau profil d'enceinte</button>`
+            const speakers = speakerProfiles();
+            const machines = machineProfiles();
+            const speakerCards = speakers.map(type => card(type, "speaker")).join("");
+            const machineCards = machines.map(type => card(type, "machine")).join("");
+            const wifiCards = wifiDevices.map(device => `
+                <article class="wifi-device-card">
+                    <div class="wifi-device-main">
+                        <div class="wifi-device-ssid">${escapeHtml(device.ssid)}</div>
+                        <div class="wifi-device-id">ID : ${escapeHtml(device.device_code)}</div>
+                        ${isAdmin() ? `<div class="wifi-password-status">${wifiSecrets[device.id] ? "Mot de passe enregistré" : "Mot de passe à renseigner"}</div>` : ""}
+                    </div>
+                    ${isAdmin() ? `
+                        <div class="wifi-device-actions">
+                            <button class="btn secondary small" onclick="openWifiEditor('${device.id}')">✏️ Modifier</button>
+                            <button class="btn danger small" onclick="deleteWifiDevice('${device.id}')">Supprimer</button>
+                        </div>` : ""}
+                </article>
+            `).join("");
+            const speakerButton = isAdmin()
+                ? `<button class="btn" onclick="openTypeEditor(null, 'speaker')">＋ Nouveau profil d'enceinte</button>`
+                : "";
+            const machineButton = isAdmin()
+                ? `<button class="btn secondary" onclick="openTypeEditor(null, 'machine')">＋ Nouveau profil de machine</button>`
+                : "";
+            const wifiButton = isAdmin()
+                ? `<button class="btn" onclick="openWifiEditor(null)">＋ Ajouter une borne Wi-Fi</button>`
                 : "";
 
             return `
                 <div class="gear-header">
                     <h1>🔊 Matériel</h1>
-                    ${addButton}
                 </div>
-                ${speakerTypes.length
-                    ? `<div class="gear-grid">${cards}</div>`
-                    : `<div class="empty">Aucun profil d'enceinte pour l'instant.${isAdmin() ? " Crée le premier avec le bouton ci-dessus." : ""}</div>`}
+                <section class="gear-kind-section speakers-section">
+                    <div class="gear-kind-header"><h2>Enceintes</h2>${speakerButton}</div>
+                    ${speakerCards ? `<div class="gear-grid">${speakerCards}</div>` : `<div class="empty">Aucun profil d'enceinte pour l'instant.${isAdmin() ? " Créez-en un avec le bouton ci-dessus." : ""}</div>`}
+                </section>
+                <section class="gear-kind-section machines-section">
+                    <div class="gear-kind-header"><h2>Amplificateurs et processeurs</h2>${machineButton}</div>
+                    ${machineCards ? `<div class="gear-grid">${machineCards}</div>` : `<div class="empty">Aucun profil de machine pour l'instant.${isAdmin() ? " Créez d'abord les modèles de machines que vous souhaitez placer dans les baies." : ""}</div>`}
+                </section>
+                <section class="gear-kind-section wifi-section">
+                    <div class="gear-kind-header"><h2>Bornes Wi-Fi</h2>${wifiButton}</div>
+                    ${wifiCards ? `<div class="wifi-device-list">${wifiCards}</div>` : `<div class="empty">Aucune borne Wi-Fi enregistrée.${isAdmin() ? " Ajoutez une borne pour renseigner son SSID, son mot de passe et son identifiant." : ""}</div>`}
+                </section>
             `;
         }
 
+        function openWifiEditor(wifiDeviceId) {
+            if (!isAdmin()) return;
+            const device = wifiDeviceId ? getWifiDevice(wifiDeviceId) : null;
+            if (wifiDeviceId && !device) return;
+
+            openModal(`
+                <h2 style="margin-top:0;">${device ? "Modifier une borne Wi-Fi" : "Nouvelle borne Wi-Fi"}</h2>
+                <label class="popup-label" for="wifi-ssid">SSID</label>
+                <input class="popup-input" id="wifi-ssid" type="text" maxlength="128" value="${escapeHtml(device?.ssid || "")}" required>
+
+                <label class="popup-label" for="wifi-password">Mot de passe</label>
+                <div class="wifi-password-field">
+                    <input class="popup-input" id="wifi-password" type="password" autocomplete="new-password" value="${escapeHtml(device ? (wifiSecrets[device.id] || "") : "")}" ${device ? "" : "required"}>
+                    <button type="button" class="btn secondary small" id="wifi-password-toggle" onclick="toggleWifiPasswordVisibility()">Afficher</button>
+                </div>
+
+                <label class="popup-label" for="wifi-device-code">Identifiant de la borne</label>
+                <input class="popup-input" id="wifi-device-code" type="text" maxlength="128" value="${escapeHtml(device?.device_code || "")}" required>
+
+                <div class="modal-actions">
+                    <button class="btn" onclick="saveWifiDevice('${device ? device.id : ""}')">Enregistrer</button>
+                    <button class="btn secondary" onclick="closeModal()">Annuler</button>
+                </div>
+            `);
+        }
+
+        function toggleWifiPasswordVisibility() {
+            const input = document.getElementById("wifi-password");
+            const button = document.getElementById("wifi-password-toggle");
+            if (!input || !button) return;
+            const reveal = input.type === "password";
+            input.type = reveal ? "text" : "password";
+            button.textContent = reveal ? "Masquer" : "Afficher";
+        }
+
+        async function saveWifiDevice(wifiDeviceId) {
+            if (!isAdmin()) return;
+            const ssid = document.getElementById("wifi-ssid").value.trim();
+            const password = document.getElementById("wifi-password").value;
+            const deviceCode = document.getElementById("wifi-device-code").value.trim();
+
+            if (!ssid || !deviceCode || (!wifiDeviceId && !password)) {
+                toast("Renseignez le SSID, le mot de passe et l'identifiant de la borne.", true);
+                return;
+            }
+
+            let deviceResult;
+            if (wifiDeviceId) {
+                deviceResult = await sb.from("wifi_devices")
+                    .update({ ssid, device_code: deviceCode })
+                    .eq("id", wifiDeviceId)
+                    .select("id, ssid, device_code")
+                    .single();
+            } else {
+                deviceResult = await sb.from("wifi_devices")
+                    .insert({ id: randomId("wifi-"), ssid, device_code: deviceCode })
+                    .select("id, ssid, device_code")
+                    .single();
+            }
+
+            if (deviceResult.error) {
+                toast("Borne Wi-Fi non enregistrée : " + deviceResult.error.message, true);
+                return;
+            }
+
+            const id = deviceResult.data.id;
+            if (password) {
+                const { error } = await sb.from("wifi_device_secrets")
+                    .upsert({ wifi_device_id: id, password }, { onConflict: "wifi_device_id" });
+                if (error) {
+                    toast("Borne enregistrée, mais mot de passe non enregistré : " + error.message, true);
+                    upsertWifiDeviceLocal(deviceResult.data);
+                    return;
+                }
+                upsertWifiSecretLocal({ wifi_device_id: id, password });
+            }
+
+            closeModal();
+            upsertWifiDeviceLocal(deviceResult.data);
+            toast("Borne Wi-Fi enregistrée ✅");
+        }
+
+        async function deleteWifiDevice(wifiDeviceId) {
+            if (!isAdmin()) return;
+            const device = getWifiDevice(wifiDeviceId);
+            if (!device) return;
+            const count = locations.filter(site => site.wifi_device_id === wifiDeviceId).length;
+            const impact = count ? ` Son association sera retirée de ${count} point(s) sur la carte.` : "";
+            if (!confirm(`Supprimer la borne Wi-Fi « ${device.ssid} » ?${impact}`)) return;
+
+            const { error } = await sb.from("wifi_devices").delete().eq("id", wifiDeviceId);
+            if (error) {
+                toast("Suppression impossible : " + error.message, true);
+                return;
+            }
+
+            removeWifiDeviceLocal(wifiDeviceId);
+            toast("Borne Wi-Fi supprimée");
+        }
+
         function gearDetailHtml(type) {
+            const machine = isMachineType(type);
             const st = typeStats(type.id);
             const sites = [...st.sites].sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
@@ -1230,12 +1582,30 @@
                 <div class="panel">
                     <h2>Déploiement</h2>
                     <div class="deploy-summary">
-                        <strong>${st.qty}</strong> enceinte(s) sur <strong>${st.points}</strong> point(s)
-                        · <strong>${st.recovered}</strong> récupéré(s)
+                        ${machine
+                            ? `<strong>${st.qty}</strong> machine(s) installée(s) dans <strong>${st.points}</strong> baie(s)`
+                            : `<strong>${st.qty}</strong> enceinte(s) sur <strong>${st.points}</strong> point(s) · <strong>${st.recovered}</strong> récupéré(s)`}
                     </div>
                     ${sites.length
-                        ? sites.map(deployHtml).join("")
-                        : `<div class="empty">Aucun point n'utilise ce type pour l'instant.</div>`}
+                        ? sites.map(site => machine ? machineDeployHtml(site, type.id) : deployHtml(site)).join("")
+                        : `<div class="empty">${machine ? "Cette machine n'est encore installée dans aucune baie." : "Aucun point n'utilise ce type pour l'instant."}</div>`}
+                </div>
+            `;
+        }
+
+        function machineDeployHtml(site, machineTypeId) {
+            const entry = bayContents(site).find(item => item.machine_type_id === machineTypeId);
+            if (!entry) return "";
+            const quantity = Math.max(1, parseInt(entry.quantity, 10) || 1);
+            return `
+                <div class="deploy">
+                    <div class="deploy-top">
+                        <div class="deploy-info">
+                            <strong>${escapeHtml(site.name)}</strong>${quantity > 1 ? ` · × ${quantity}` : ""}
+                            <div class="deploy-sub">${escapeHtml(getCategory(site)?.name || "Baie")}</div>
+                        </div>
+                        <button class="btn secondary small" onclick="gotoSite('${site.id}')">📍 Voir la baie</button>
+                    </div>
                 </div>
             `;
         }
@@ -1342,26 +1712,29 @@
             else if (!value) row.querySelector(".spec-value").focus();
         }
 
-        function openTypeEditor(typeId) {
+        function openTypeEditor(typeId, requestedKind = "speaker") {
             if (!isAdmin()) return;
 
             const type = typeId ? speakerTypes.find(t => t.id === typeId) : null;
             if (typeId && !type) return;
 
+            const kind = type ? (type.equipment_kind || "speaker") : requestedKind;
+            const machine = kind === "machine";
+
             const t = type || {
-                name: "", label: "", color: nextTypeColor(), manufacturer: "", model: "",
+                name: "", label: "", color: nextTypeColor(), manufacturer: "", model: "", equipment_kind: kind,
                 description: "", datasheet_url: "", specs: [], notes: ""
             };
 
             openModal(`
-                <h2 style="margin-top:0;">${type ? "Modifier le profil" : "Nouveau profil d'enceinte"}</h2>
+                <h2 style="margin-top:0;">${type ? (machine ? "Modifier le profil de machine" : "Modifier le profil d'enceinte") : machine ? "Nouveau profil de machine" : "Nouveau profil d'enceinte"}</h2>
 
                 <label class="popup-label" for="ed-name">Nom *</label>
-                <input class="popup-input" id="ed-name" type="text" value="${escapeHtml(t.name)}" placeholder="ex : KARA II">
+                <input class="popup-input" id="ed-name" type="text" value="${escapeHtml(t.name)}" placeholder="${machine ? 'ex : LA12X' : 'ex : KARA II'}">
 
                 <div class="ed-row">
                     <div>
-                        <label class="popup-label" for="ed-color">Couleur sur la carte</label>
+                <label class="popup-label" for="ed-color">Couleur repère</label>
                         <input class="color-input" id="ed-color" type="color" value="${t.color}">
                     </div>
                     <div>
@@ -1381,7 +1754,7 @@
                         <input class="popup-input" id="ed-manu" type="text" value="${escapeHtml(t.manufacturer)}">
                     </div>
                     <div>
-                        <label class="popup-label" for="ed-model">Modèle / référence</label>
+                <label class="popup-label" for="ed-model">Modèle / référence</label>
                         <input class="popup-input" id="ed-model" type="text" value="${escapeHtml(t.model)}">
                     </div>
                 </div>
@@ -1403,7 +1776,7 @@
                 <textarea class="popup-input" id="ed-notes" rows="3">${escapeHtml(t.notes)}</textarea>
 
                 <div class="modal-actions">
-                    <button class="btn" onclick="saveTypeEditor(${type ? `'${type.id}'` : 'null'})">Enregistrer</button>
+                    <button class="btn" onclick="saveTypeEditor(${type ? `'${type.id}'` : 'null'}, '${kind}')">Enregistrer</button>
                     <button class="btn secondary" onclick="closeModal()">Annuler</button>
                     <span class="spacer"></span>
                     ${type ? `<button class="btn danger" onclick="deleteSpeakerType('${type.id}')">Supprimer</button>` : ''}
@@ -1414,7 +1787,7 @@
             document.getElementById("ed-name").focus();
         }
 
-        async function saveTypeEditor(typeId) {
+        async function saveTypeEditor(typeId, kind = "speaker") {
             if (!isAdmin()) return;
 
             const val = id => document.getElementById(id).value.trim();
@@ -1448,7 +1821,8 @@
                 description: val("ed-desc"),
                 datasheet_url: url,
                 specs,
-                notes: val("ed-notes")
+                notes: val("ed-notes"),
+                equipment_kind: kind
             };
 
             let result;
@@ -1484,7 +1858,14 @@
             const type = speakerTypes.find(t => t.id === typeId);
             if (!type) return;
 
-            const count = locations.filter(s => s.speaker_type_id === typeId).length;
+            const machine = isMachineType(type);
+            const count = machine
+                ? locations.filter(site => bayContents(site).some(item => item.machine_type_id === typeId)).length
+                : locations.filter(s => s.speaker_type_id === typeId).length;
+            if (machine && count) {
+                toast(`Retirez d'abord cette machine des ${count} baie(s) avant de supprimer son profil.`, true);
+                return;
+            }
             const msg = count
                 ? `Supprimer le profil « ${type.name} » pour tout le monde ? Ses ${count} point(s) passeront en « Sans type ».`
                 : `Supprimer le profil « ${type.name} » ?`;
@@ -1539,9 +1920,12 @@
             const name = document.getElementById("edit-name").value.trim();
             const type = document.getElementById("edit-type").value.trim();
             const cat = document.getElementById("edit-cat").value;
-            const speaker = document.getElementById("edit-speaker").value;
+            const bayCategory = categories.find(category => category.id === cat && category.shape === "rack");
+            const wifiCategory = categories.find(category => category.id === cat && category.shape === "wifi");
+            const speaker = bayCategory || wifiCategory ? "" : document.getElementById("edit-speaker").value;
             const qtyRaw = document.getElementById("edit-qty").value.trim();
-            const quantity = qtyRaw === "" ? null : Math.max(0, parseInt(qtyRaw, 10) || 0);
+            const quantity = bayCategory || wifiCategory || qtyRaw === "" ? null : Math.max(0, parseInt(qtyRaw, 10) || 0);
+            const wifiDeviceId = wifiCategory ? document.getElementById("edit-wifi-device").value : "";
 
             const { data, error } = await sb.from("locations")
                 .update({
@@ -1549,7 +1933,9 @@
                     type,
                     category_id: cat || null,
                     speaker_type_id: speaker || null,
-                    quantity
+                    quantity,
+                    bay_machines: bayCategory ? bayMachinesFromEditor() : [],
+                    wifi_device_id: wifiDeviceId || null
                 })
                 .eq("id", siteId)
                 .select()
@@ -1602,7 +1988,9 @@
                     lng: latlng.lng,
                     category_id: null,
                     speaker_type_id: null,
-                    quantity: null
+                    quantity: null,
+                    bay_machines: [],
+                    wifi_device_id: null
                 })
                 .select()
                 .single();
@@ -1694,7 +2082,7 @@
             }
 
             if (categories.length >= MAX_CATEGORIES || !shape) {
-                toast("Maximum de 6 catégories atteint", true);
+                toast(`Maximum de ${MAX_CATEGORIES} catégories atteint`, true);
                 return;
             }
 
@@ -1854,4 +2242,3 @@
 
         // Sécurité : si l'événement initial n'est jamais reçu, on vérifie la session nous-mêmes
         sb.auth.getSession().then(({ data }) => handleSession(data.session));
-
