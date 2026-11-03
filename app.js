@@ -150,6 +150,7 @@
         let speakerTypes = [];    // profils d'enceintes et de machines
         let wifiDevices = [];     // bornes Wi-Fi visibles pour les utilisateurs connectés
         let wifiSecrets = {};     // mots de passe chargés uniquement pour les administrateurs
+        let permissionUsers = []; // comptes et autorisations affichés dans Réglages
         const markers = {};       // id du point -> marqueur Leaflet
         let channel = null;       // canal temps réel
         let editMode = false;
@@ -179,6 +180,13 @@
         const hiddenCats = () => new Set((profile && profile.hidden_categories) || []);
         const hiddenTypes = () => new Set((profile && profile.hidden_types) || []);
         const isAdmin = () => !!(profile && profile.is_admin);
+        const canCreateLocation = () => isAdmin() || !!(profile && profile.can_create_locations);
+        const canEditLocation = () => isAdmin() || !!(profile && profile.can_edit_locations);
+        const canEditSite = site => isAdmin() || canEditLocation() || !!(site && canCreateLocation() && site.created_by === me?.id);
+        const canCreateType = kind => isAdmin() || !!(profile && (kind === "machine" ? profile.can_create_machine_types : profile.can_create_speaker_types));
+        const canEditType = typeId => isAdmin() || !!(profile && (profile.editable_type_ids || []).includes(typeId));
+        const canEditAnyPoint = () => isAdmin() || canCreateLocation() || canEditLocation();
+        const canUseEditMode = () => canEditAnyPoint();
         const randomId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 
         function escapeHtml(str) {
@@ -412,6 +420,17 @@
             }
         }
 
+        async function checkPermissionSchema() {
+            const { error } = await sb.from("profiles")
+                .select("can_create_locations, can_edit_locations, can_create_speaker_types, can_create_machine_types, editable_type_ids")
+                .limit(1);
+            if (error) {
+                const err = new Error("La base de données n'est pas à jour : exécute supabase-update-permissions.sql dans Supabase (SQL Editor), puis clique sur Réessayer.");
+                err.isSchema = true;
+                throw err;
+            }
+        }
+
         async function startApp(user) {
             starting = true;
             showSplash("Chargement des données…", false);
@@ -429,15 +448,23 @@
                     display_name: (user.user_metadata && user.user_metadata.display_name) || user.email,
                     is_admin: false,
                     hidden_categories: [],
-                    hidden_types: []
+                    hidden_types: [],
+                    can_create_locations: false,
+                    can_edit_locations: false,
+                    can_create_speaker_types: false,
+                    can_create_machine_types: false,
+                    editable_type_ids: []
                 };
 
+                await checkPermissionSchema();
                 profile.hidden_categories = profile.hidden_categories || [];
                 profile.hidden_types = profile.hidden_types || [];
+                profile.editable_type_ids = Array.isArray(profile.editable_type_ids) ? profile.editable_type_ids : [];
 
                 await loadWifiData();
+                if (isAdmin()) await loadPermissionUsers();
 
-                document.body.classList.toggle("admin", profile.is_admin);
+                updatePermissionUi();
                 document.getElementById("userName").textContent = profile.display_name;
 
                 rebuildMarkers();
@@ -500,6 +527,40 @@
             }
         }
 
+        async function loadPermissionUsers() {
+            const fields = "id, display_name, is_admin, can_create_locations, can_edit_locations, can_create_speaker_types, can_create_machine_types, editable_type_ids";
+            const { data, error } = await sb.from("profiles").select(fields).order("display_name");
+            if (error) throw error;
+            permissionUsers = (data || []).map(user => ({
+                ...user,
+                editable_type_ids: Array.isArray(user.editable_type_ids) ? user.editable_type_ids : []
+            }));
+        }
+
+        function updatePermissionUi() {
+            document.body.classList.toggle("admin", isAdmin());
+            document.body.classList.toggle("point-editor", canUseEditMode());
+            const settingsButton = document.getElementById("navSettings");
+            if (settingsButton) settingsButton.style.display = isAdmin() ? "block" : "none";
+            const addChipElement = document.getElementById("addChip");
+            if (addChipElement) addChipElement.style.display = canCreateLocation() ? "block" : "none";
+
+            if (editMode && !canUseEditMode()) {
+                editMode = false;
+                document.body.classList.remove("editing");
+                const button = document.getElementById("editToggle");
+                if (button) {
+                    button.textContent = "✏️ Mode édition";
+                    button.classList.remove("active");
+                }
+                setPlacing(false);
+                applyModeToMarkers();
+            }
+
+            if (!isAdmin() && page === "settings") showPage("map");
+            else if (page === "settings") renderSettings();
+        }
+
         function stopApp() {
             if (channel) {
                 sb.removeChannel(channel);
@@ -518,6 +579,7 @@
             speakerTypes = [];
             wifiDevices = [];
             wifiSecrets = {};
+            permissionUsers = [];
             profile = null;
             me = null;
             currentUserId = null;
@@ -525,7 +587,8 @@
             placing = false;
             gearTypeId = null;
 
-            document.body.classList.remove("admin", "editing");
+            document.body.classList.remove("admin", "point-editor", "editing", "page-settings");
+            document.getElementById("navSettings").style.display = "none";
             document.getElementById("editToggle").textContent = "✏️ Mode édition";
             document.getElementById("editToggle").classList.remove("active");
             showPage("map");
@@ -549,6 +612,18 @@
                 .on("postgres_changes", { event: "*", schema: "public", table: "locations" }, payload => {
                     if (payload.eventType === "DELETE") removeLocal(payload.old.id);
                     else upsertLocal(payload.new, true);
+                })
+                .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, async payload => {
+                    if (isAdmin()) {
+                        await loadPermissionUsers();
+                        if (page === "settings") renderSettings();
+                    }
+                    if (payload.new && payload.new.id === me?.id) {
+                        profile = { ...profile, ...payload.new };
+                        profile.editable_type_ids = Array.isArray(profile.editable_type_ids) ? profile.editable_type_ids : [];
+                        updatePermissionUi();
+                        refreshAll(true);
+                    }
                 })
                 .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, payload => {
                     if (payload.eventType === "DELETE") removeCategoryLocal(payload.old.id);
@@ -583,6 +658,7 @@
             try {
                 await loadData();
                 await loadWifiData();
+                if (isAdmin()) await loadPermissionUsers();
                 rebuildMarkers();
                 refreshAll(false);
             } catch (err) {
@@ -658,6 +734,7 @@
             updateAllIcons();
             locations.forEach(s => refreshPopupIfOpen(s.id));
             refreshAll(false);
+            if (page === "settings") renderSettings();
         }
 
         function removeSpeakerTypeLocal(id) {
@@ -670,6 +747,7 @@
 
             updateAllIcons();
             refreshAll(false);
+            if (page === "settings") renderSettings();
         }
 
         function upsertWifiDeviceLocal(row) {
@@ -850,7 +928,7 @@
 
                     <div class="popup-row">
                         <button class="popup-action" onclick="saveSite('${site.id}')">Enregistrer</button>
-                        <button class="popup-action danger" onclick="deleteSite('${site.id}')">Supprimer</button>
+                        ${isAdmin() ? `<button class="popup-action danger" onclick="deleteSite('${site.id}')">Supprimer</button>` : ""}
                     </div>
                     <div class="popup-coords">${site.lat.toFixed(5)}, ${site.lng.toFixed(5)}</div>
                 </div>
@@ -904,7 +982,7 @@
         function popupContent(siteId) {
             const site = getSite(siteId);
             if (!site) return "";
-            return editMode ? createEditPopup(site) : createViewPopup(site);
+            return editMode && canEditSite(site) ? createEditPopup(site) : createViewPopup(site);
         }
 
         function bindPopupFor(marker, siteId) {
@@ -929,7 +1007,7 @@
             if (!marker) {
                 marker = L.marker([site.lat, site.lng], {
                     icon: createIcon(site),
-                    draggable: editMode
+                    draggable: editMode && canEditSite(site)
                 });
 
                 marker.on("dragstart", () => { marker._drag = true; });
@@ -988,7 +1066,7 @@
                 const marker = markers[site.id];
                 if (!marker) return;
 
-                marker.options.draggable = editMode;
+                marker.options.draggable = editMode && canEditSite(site);
                 marker.setIcon(createIcon(site));
 
                 if (marker.dragging) {
@@ -1225,17 +1303,23 @@
            Pages : Carte / Matériel
            ============================================================ */
         function showPage(target) {
+            if (target === "settings" && !isAdmin()) return;
             page = target;
 
             document.body.classList.toggle("page-gear", target === "gear");
+            document.body.classList.toggle("page-settings", target === "settings");
             document.getElementById("navMap").classList.toggle("active", target === "map");
             document.getElementById("navGear").classList.toggle("active", target === "gear");
+            document.getElementById("navSettings").classList.toggle("active", target === "settings");
 
             closeModal();
 
             if (target === "gear") {
                 map.closePopup();
                 renderGear(true);
+            } else if (target === "settings") {
+                map.closePopup();
+                renderSettings();
             } else {
                 setTimeout(() => map.invalidateSize(), 0);
             }
@@ -1442,10 +1526,10 @@
                         </div>` : ""}
                 </article>
             `).join("");
-            const speakerButton = isAdmin()
+            const speakerButton = canCreateType("speaker")
                 ? `<button class="btn" onclick="openTypeEditor(null, 'speaker')">＋ Nouveau profil d'enceinte</button>`
                 : "";
-            const machineButton = isAdmin()
+            const machineButton = canCreateType("machine")
                 ? `<button class="btn secondary" onclick="openTypeEditor(null, 'machine')">＋ Nouveau profil de machine</button>`
                 : "";
             const wifiButton = isAdmin()
@@ -1469,6 +1553,97 @@
                     ${wifiCards ? `<div class="wifi-device-list">${wifiCards}</div>` : `<div class="empty">Aucune borne Wi-Fi enregistrée.${isAdmin() ? " Ajoutez une borne pour renseigner son SSID, son mot de passe et son identifiant." : ""}</div>`}
                 </section>
             `;
+        }
+
+        function renderSettings() {
+            if (!isAdmin()) return;
+            const root = document.getElementById("settingsPage");
+            const speakers = speakerProfiles();
+            const machines = machineProfiles();
+
+            const permissionChoice = (user, key, label) => `
+                <label class="permission-choice">
+                    <input type="checkbox" data-permission="${key}" ${user[key] ? "checked" : ""} ${user.is_admin ? "disabled" : ""}>
+                    <span>${label}</span>
+                </label>
+            `;
+            const typeChoices = (user, types) => types.map(type => `
+                <label class="permission-choice">
+                    <input type="checkbox" data-type-id value="${escapeHtml(type.id)}"
+                           ${(user.editable_type_ids || []).includes(type.id) ? "checked" : ""} ${user.is_admin ? "disabled" : ""}>
+                    <span>${escapeHtml(type.name)}${typeSubtitle(type) ? ` · ${escapeHtml(typeSubtitle(type))}` : ""}</span>
+                </label>
+            `).join("");
+
+            const usersHtml = permissionUsers.map(user => `
+                <details class="settings-user" data-user-id="${escapeHtml(user.id)}">
+                    <summary>
+                        <span>${escapeHtml(user.display_name || "Utilisateur")}<small>${escapeHtml(user.id)}</small></span>
+                        <span>${user.is_admin ? "Administrateur" : "Autorisations"}</span>
+                    </summary>
+                    <div class="settings-user-body">
+                        ${user.is_admin ? `<p class="settings-empty">Les comptes administrateur disposent de tous les droits et ne sont pas modifiables ici.</p>` : `
+                            <div class="permission-group">
+                                <h3>Points de la carte</h3>
+                                ${permissionChoice(user, "can_create_locations", "Créer des points (et modifier ceux qu’il a créés)")}
+                                ${permissionChoice(user, "can_edit_locations", "Modifier tous les points existants")}
+                            </div>
+                            <div class="permission-group">
+                                <h3>Créer des profils matériels</h3>
+                                ${permissionChoice(user, "can_create_speaker_types", "Créer des profils d’enceintes")}
+                                ${permissionChoice(user, "can_create_machine_types", "Créer des profils d’amplificateurs et processeurs")}
+                            </div>
+                            <div class="permission-group">
+                                <h3>Modifier les profils autorisés</h3>
+                                ${speakers.length ? `<h3>Enceintes</h3>${typeChoices(user, speakers)}` : `<span class="settings-empty">Aucun profil d’enceinte.</span>`}
+                                ${machines.length ? `<h3>Amplificateurs et processeurs</h3>${typeChoices(user, machines)}` : `<span class="settings-empty">Aucun profil de machine.</span>`}
+                            </div>
+                            <button class="btn permission-save" onclick="saveUserPermissions('${escapeHtml(user.id)}', this)">Enregistrer les droits</button>
+                        `}
+                    </div>
+                </details>
+            `).join("");
+
+            root.innerHTML = `
+                <div class="settings-header"><h1>⚙️ Réglages</h1></div>
+                <p class="settings-intro">Choisissez les actions autorisées pour chaque compte. Les droits sont vérifiés par Supabase ; les administrateurs conservent tous les accès.</p>
+                ${usersHtml || `<p class="settings-empty">Aucun compte utilisateur trouvé.</p>`}
+            `;
+        }
+
+        async function saveUserPermissions(userId, button) {
+            if (!isAdmin()) return;
+            const card = button.closest("[data-user-id]");
+            if (!card) return;
+            const user = permissionUsers.find(item => item.id === userId);
+            if (!user || user.is_admin) return;
+
+            const permission = key => !!card.querySelector(`[data-permission="${key}"]`)?.checked;
+            const payload = {
+                can_create_locations: permission("can_create_locations"),
+                can_edit_locations: permission("can_edit_locations"),
+                can_create_speaker_types: permission("can_create_speaker_types"),
+                can_create_machine_types: permission("can_create_machine_types"),
+                editable_type_ids: [...card.querySelectorAll("input[data-type-id]:checked")].map(input => input.value)
+            };
+
+            button.disabled = true;
+            const { data, error } = await sb.from("profiles").update(payload).eq("id", userId).select().single();
+            button.disabled = false;
+            if (error) {
+                toast("Droits non enregistrés : " + error.message, true);
+                return;
+            }
+
+            permissionUsers = permissionUsers.map(item => item.id === userId ? { ...item, ...data } : item);
+            if (userId === me.id) {
+                profile = { ...profile, ...data };
+                profile.editable_type_ids = Array.isArray(profile.editable_type_ids) ? profile.editable_type_ids : [];
+                updatePermissionUi();
+                refreshAll(true);
+            }
+            renderSettings();
+            toast(`Autorisations mises à jour pour ${user.display_name || "l’utilisateur"} ✅`);
         }
 
         function openWifiEditor(wifiDeviceId) {
@@ -1576,7 +1751,7 @@
             const st = typeStats(type.id);
             const sites = [...st.sites].sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
-            const editButton = isAdmin()
+            const editButton = canEditType(type.id)
                 ? `<button class="btn" onclick="openTypeEditor('${type.id}')">✏️ Modifier</button>`
                 : "";
 
@@ -1731,7 +1906,7 @@
         }
 
         function openTypeEditor(typeId, requestedKind = "speaker") {
-            if (!isAdmin()) return;
+            if (typeId ? !canEditType(typeId) : !canCreateType(requestedKind)) return;
 
             const type = typeId ? speakerTypes.find(t => t.id === typeId) : null;
             if (typeId && !type) return;
@@ -1806,7 +1981,7 @@
         }
 
         async function saveTypeEditor(typeId, kind = "speaker") {
-            if (!isAdmin()) return;
+            if (typeId ? !canEditType(typeId) : !canCreateType(kind)) return;
 
             const val = id => document.getElementById(id).value.trim();
             const name = val("ed-name");
@@ -1933,7 +2108,7 @@
            Actions admin : points
            ============================================================ */
         async function saveSite(siteId) {
-            if (!isAdmin()) return;
+            if (!canEditSite(getSite(siteId))) return;
 
             const name = document.getElementById("edit-name").value.trim();
             const type = document.getElementById("edit-type").value.trim();
@@ -1988,7 +2163,7 @@
         }
 
         async function createSiteAt(latlng) {
-            if (!isAdmin()) return;
+            if (!canCreateLocation()) return;
 
             // Un nouveau point (sans catégorie ni type) doit rester visible pour être édité
             if (hiddenCats().has("none") || hiddenTypes().has("none")) {
@@ -2179,13 +2354,14 @@
            Mode édition (admin)
            ============================================================ */
         function setPlacing(value) {
+            if (value && !canCreateLocation()) return;
             placing = value;
             document.getElementById("map").classList.toggle("placing", value);
             document.getElementById("addChip").classList.toggle("armed", value);
         }
 
         function toggleEditMode() {
-            if (!isAdmin()) return;
+            if (!canUseEditMode()) return;
 
             editMode = !editMode;
             document.body.classList.toggle("editing", editMode);
@@ -2193,6 +2369,9 @@
             const btn = document.getElementById("editToggle");
             btn.textContent = editMode ? "✅ Terminer l'édition" : "✏️ Mode édition";
             btn.classList.toggle("active", editMode);
+
+            const addChipElement = document.getElementById("addChip");
+            addChipElement.style.display = canCreateLocation() ? "block" : "none";
 
             setPlacing(false);
             applyModeToMarkers();

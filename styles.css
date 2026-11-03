@@ -49,6 +49,9 @@
             color: white;
         }
 
+        #navSettings { display: none; }
+        body.admin #navSettings { display: block; }
+
         /* ---------- Barre latérale ---------- */
         #sidebar {
             position: absolute;
@@ -90,9 +93,13 @@
         }
 
         body.page-gear #sidebar,
-        body.page-gear #sidebarToggle {
+        body.page-gear #sidebarToggle,
+        body.page-settings #sidebar,
+        body.page-settings #sidebarToggle {
             display: none;
         }
+
+        body.page-settings #map { display: none; }
 
         @media (max-width: 700px) {
             #sidebarToggle {
@@ -411,9 +418,12 @@
             display: none;
         }
 
-        body.admin #editToggle {
+        body.point-editor #editToggle {
             display: inline-block;
         }
+
+        #categoryTools { display: none; }
+        body.admin #categoryTools { display: block; }
 
         #editTools {
             display: none;
@@ -898,6 +908,91 @@
         body.page-gear #gearPage {
             display: block;
         }
+
+        #settingsPage {
+            display: none;
+            position: absolute;
+            inset: 0;
+            z-index: 1500;
+            overflow-y: auto;
+            box-sizing: border-box;
+            padding: 20px 100px 40px 24px;
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+
+        body.page-settings #settingsPage { display: block; }
+
+        .settings-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .settings-header h1 { margin: 0; font-size: 24px; }
+
+        .settings-intro, .settings-empty {
+            margin: 0 0 14px;
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .settings-user {
+            margin-bottom: 12px;
+            border-radius: 12px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, .1);
+            overflow: hidden;
+        }
+
+        .settings-user summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .settings-user summary small {
+            display: block;
+            margin-top: 3px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 400;
+        }
+
+        .settings-user-body {
+            padding: 0 16px 16px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .permission-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 8px 14px;
+            padding: 14px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .permission-group h3 { grid-column: 1 / -1; margin: 0; font-size: 13px; }
+
+        .permission-choice {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            color: #334155;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .permission-choice input { margin: 1px 0 0; accent-color: #2563eb; }
+
+        .permission-save { margin-top: 14px; }
 
         #gearPage h1 {
             margin: 0;
@@ -1467,6 +1562,17 @@
                          calc(env(safe-area-inset-left) + 12px) !important;
                 -webkit-overflow-scrolling: touch;
             }
+
+            #settingsPage {
+                padding: calc(env(safe-area-inset-top) + 82px)
+                         calc(env(safe-area-inset-right) + 12px)
+                         calc(env(safe-area-inset-bottom) + 24px)
+                         calc(env(safe-area-inset-left) + 12px);
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .settings-header { align-items: stretch; flex-direction: column; }
+            .permission-group { grid-template-columns: minmax(0, 1fr); }
 
             .gear-header {
                 align-items: stretch;

@@ -49,6 +49,7 @@
     <nav id="rightnav">
         <button class="nav-btn active" id="navMap" onclick="showPage('map')"><span>🗺️</span>Carte</button>
         <button class="nav-btn" id="navGear" onclick="showPage('gear')"><span>🔊</span>Matériel</button>
+        <button class="nav-btn" id="navSettings" onclick="showPage('settings')"><span>⚙️</span>Réglages</button>
     </nav>
 
     <button id="sidebarToggle" onclick="toggleSidebar()" title="Afficher / masquer le panneau">☰</button>
@@ -82,18 +83,20 @@
                 • Les profils d'enceintes et de machines se gèrent dans la page <strong>Matériel</strong>
             </div>
 
-            <div class="edit-section-title">Catégories (forme du marqueur)</div>
-            <div id="catManager"></div>
-            <div class="type-add" id="catAdd">
-                <input type="text" id="newCatName" placeholder="Nouvelle catégorie"
-                       onkeydown="if(event.key==='Enter') addCategory()">
-                <div class="type-sub">
-                    <select id="newCatShape"></select>
-                    <button class="btn" onclick="addCategory()">Ajouter</button>
+            <div id="categoryTools">
+                <div class="edit-section-title">Catégories (forme du marqueur)</div>
+                <div id="catManager"></div>
+                <div class="type-add" id="catAdd">
+                    <input type="text" id="newCatName" placeholder="Nouvelle catégorie"
+                           onkeydown="if(event.key==='Enter') addCategory()">
+                    <div class="type-sub">
+                        <select id="newCatShape"></select>
+                        <button class="btn" onclick="addCategory()">Ajouter</button>
+                    </div>
                 </div>
-            </div>
-            <div class="edit-hint" id="catLimit" style="display:none; color:#64748b;">
-                Maximum atteint : 8 catégories (une par forme).
+                <div class="edit-hint" id="catLimit" style="display:none; color:#64748b;">
+                    Maximum atteint : 8 catégories (une par forme).
+                </div>
             </div>
         </div>
 
@@ -131,6 +134,9 @@
 
     <!-- Page Matériel -->
     <div id="gearPage"></div>
+
+    <!-- Page Réglages (administrateur) -->
+    <div id="settingsPage"></div>
 
     <!-- Fenêtre modale -->
     <div id="modal" onclick="if (event.target === this) closeModal()">
