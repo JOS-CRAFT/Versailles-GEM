@@ -54,7 +54,7 @@
 
         function shapeSvg({
             shape = "circle", fill = NEUTRAL_FILL, stroke = "white", label = "", size = 38,
-            outline = false, recovered = false, dashed = false, shadow = false
+            outline = false, recovered = false, dashed = false, shadow = false, hasComment = false
         }) {
             const body = SHAPES[shape] || SHAPES.circle;
             const textY = shape === "triangle" ? 30 : 24.5;
@@ -79,6 +79,12 @@
                     <path d="M-3.6 0.2 L-1 3 L3.8 -2.8" fill="none" stroke="white" stroke-width="2.2"
                           stroke-linecap="round" stroke-linejoin="round"/>
                 </g>` : "";
+            const commentBadge = hasComment ? `
+                <g transform="translate(8 8)" aria-label="Commentaire présent">
+                    <circle r="8" fill="#dc2626" stroke="white" stroke-width="2"/>
+                    <text x="0" y="4" text-anchor="middle" font-family="Arial, sans-serif"
+                          font-size="12" font-weight="700" fill="white">!</text>
+                </g>` : "";
 
             const style = "overflow:visible;display:block" +
                 (shadow ? ";filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))" : "");
@@ -89,6 +95,7 @@
                            opacity="${recovered ? .55 : 1}">${body}</g>
                         ${text}
                         ${badge}
+                        ${commentBadge}
                     </svg>`;
         }
 
@@ -106,7 +113,8 @@
                 size,
                 outline,
                 shadow,
-                recovered: !!site.recovered
+                recovered: !!site.recovered,
+                hasComment: !!(site.comment && site.comment.trim())
             });
         }
 
@@ -150,6 +158,7 @@
         let currentUserId = null;
         let page = "map";         // "map" | "gear"
         let gearTypeId = null;    // profil ouvert dans la page Matériel
+        let gearHighlightSiteId = null; // point précis à mettre en évidence dans le matériel
 
         const getSite = id => locations.find(l => l.id === id) || null;
         const getCategory = site => categories.find(c => c.id === site.category_id) || null;
@@ -733,7 +742,7 @@
                 : '';
 
             const infoButton = type
-                ? `<button class="popup-info" title="Infos sur l'enceinte" onclick="openInfo('${type.id}')">i</button>`
+                ? `<button class="popup-info" title="Infos sur l'enceinte" onclick="openInfo('${type.id}', '${site.id}')">i</button>`
                 : '';
 
             return `
@@ -1338,7 +1347,7 @@
         const typeSubtitle = type => [type.manufacturer, type.model].filter(Boolean).join(" · ");
 
         // Fiche d'info ouverte depuis le bouton "i" du popup
-        function openInfo(typeId) {
+        function openInfo(typeId, siteId) {
             const type = speakerTypes.find(t => t.id === typeId);
             if (!type) return;
 
@@ -1357,16 +1366,23 @@
                     <strong>${st.qty}</strong> enceinte(s) déployée(s) sur <strong>${st.points}</strong> point(s)
                 </div>
                 <div class="modal-actions">
-                    <button class="btn" onclick="openGearFromModal('${type.id}')">Voir dans le matériel</button>
+                    <button class="btn" onclick="openGearFromModal('${type.id}', '${siteId}')">Voir dans le matériel</button>
                     <button class="btn secondary" onclick="closeModal()">Fermer</button>
                 </div>
             `);
         }
 
-        function openGearFromModal(typeId) {
+        function openGearFromModal(typeId, siteId) {
             closeModal();
             gearTypeId = typeId;
+            gearHighlightSiteId = siteId || null;
             showPage("gear");
+            if (siteId) {
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    const target = document.getElementById(`deploy-${siteId}`);
+                    if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+                }));
+            }
         }
 
         /* ============================================================
@@ -1620,7 +1636,7 @@
             const cat = getCategory(site);
 
             return `
-                <div class="deploy ${site.recovered ? 'done' : ''}">
+                <div id="deploy-${site.id}" class="deploy ${site.recovered ? 'done' : ''}${site.id === gearHighlightSiteId ? ' gear-highlight' : ''}">
                     <div class="deploy-top">
                         ${siteIconSvg(site, 38, { shadow: true })}
                         <div class="deploy-info">
@@ -1645,12 +1661,14 @@
 
         function openGearType(typeId) {
             gearTypeId = typeId;
+            gearHighlightSiteId = null;
             renderGear(true);
             document.getElementById("gearPage").scrollTop = 0;
         }
 
         function closeGearType() {
             gearTypeId = null;
+            gearHighlightSiteId = null;
             renderGear(true);
             document.getElementById("gearPage").scrollTop = 0;
         }

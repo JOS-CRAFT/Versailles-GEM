@@ -1076,6 +1076,17 @@
             border-color: #bfe8cd;
         }
 
+        .deploy.gear-highlight {
+            border-color: #2563eb;
+            background: #eff6ff;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .2);
+            animation: gear-highlight-pulse 1.5s ease-in-out 2;
+        }
+
+        @keyframes gear-highlight-pulse {
+            50% { box-shadow: 0 0 0 6px rgba(37, 99, 235, .12); }
+        }
+
         .deploy-top {
             display: flex;
             align-items: center;
