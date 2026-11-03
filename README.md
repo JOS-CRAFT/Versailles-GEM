@@ -10,6 +10,7 @@ Application web de suivi du démontage Versailles GEM.
 - `supabase-update-baies.sql` : mise à jour du schéma Supabase pour les baies et les machines
 - `supabase-update-wifi.sql` : mise à jour du schéma Supabase pour les bornes Wi-Fi
 - `supabase-update-permissions.sql` : droits par utilisateur pour les points et profils matériels
+- `supabase-update-bosquets.sql` : délimitations, noms et affichage des bosquets
 
 ## Mise à jour Supabase
 
@@ -20,6 +21,8 @@ Les machines se créent dans **Matériel**, dans la section **Amplificateurs et 
 Pour les bornes Wi-Fi, exécuter ensuite `supabase-update-wifi.sql`. La section **Bornes Wi-Fi** conserve le SSID et l'identifiant pour les comptes connectés. Les mots de passe sont stockés séparément et ne sont accessibles qu'aux administrateurs. En mode édition, affecter la catégorie **Wi-Fi** à un point et choisir la borne correspondante.
 
 Pour gérer les droits par compte, exécuter `supabase-update-permissions.sql` après les migrations Matériel/Baies. La page **Réglages** (administrateurs uniquement) permet d'autoriser la création de points, la modification de points, la création de profils d'enceintes ou de machines, et la modification de profils précis. Un utilisateur autorisé à créer un point peut modifier les points qu'il a lui-même créés. La suppression des points et des profils reste réservée aux administrateurs.
+
+Pour nommer les bosquets, exécuter `supabase-update-bosquets.sql` dans Supabase. En mode édition, un administrateur peut tracer chaque contour en suivant la carte satellite, puis le nommer ou le renommer en cliquant sur son contour ou son étiquette. Un bosquet nommé est surligné s'il contient au moins un point d'enceinte ; son étiquette apparaît au centre du contour.
 
 ## Développement
 

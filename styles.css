@@ -425,6 +425,49 @@
         #categoryTools { display: none; }
         body.admin #categoryTools { display: block; }
 
+        #bosquetTools { display: none; margin-top: 10px; }
+        body.admin.editing #bosquetTools { display: block; }
+
+        #bosquetDrawControls {
+            display: none;
+            position: absolute;
+            top: 14px;
+            left: 50%;
+            z-index: 2100;
+            transform: translateX(-50%);
+            align-items: center;
+            gap: 8px;
+            max-width: calc(100% - 150px);
+            padding: 9px 10px;
+            border-radius: 10px;
+            background: white;
+            box-shadow: 0 3px 14px rgba(15, 23, 42, .3);
+            color: #334155;
+            font-size: 12px;
+        }
+
+        body.bosquet-drawing #bosquetDrawControls { display: flex; }
+
+        #bosquetDrawStatus { min-width: 150px; }
+
+        .bosquet-label {
+            width: max-content;
+            max-width: 220px;
+            margin: 0 auto;
+            padding: 5px 9px;
+            border: 1px solid rgba(30, 64, 175, .55);
+            border-radius: 7px;
+            background: rgba(255, 255, 255, .94);
+            box-shadow: 0 1px 5px rgba(15, 23, 42, .35);
+            color: #1e3a8a;
+            font: 700 13px/1.25 Arial, sans-serif;
+            text-align: center;
+            white-space: normal;
+            cursor: default;
+        }
+
+        body.editing .bosquet-label { cursor: pointer; }
+
         #editTools {
             display: none;
             margin-top: 10px;
@@ -1573,6 +1616,17 @@
 
             .settings-header { align-items: stretch; flex-direction: column; }
             .permission-group { grid-template-columns: minmax(0, 1fr); }
+
+            #bosquetDrawControls {
+                top: calc(env(safe-area-inset-top) + 8px);
+                left: 8px;
+                right: 76px;
+                transform: none;
+                max-width: none;
+                flex-wrap: wrap;
+            }
+
+            #bosquetDrawStatus { flex-basis: 100%; }
 
             .gear-header {
                 align-items: stretch;

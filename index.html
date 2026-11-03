@@ -98,6 +98,11 @@
                     Maximum atteint : 8 catégories (une par forme).
                 </div>
             </div>
+            <div id="bosquetTools">
+                <div class="edit-section-title">Bosquets</div>
+                <div class="edit-hint">Tracez une fois le contour de chaque bosquet en suivant les limites visibles sur la carte. Seuls les bosquets nommés et contenant au moins une enceinte seront surlignés.</div>
+                <button class="btn secondary small" id="bosquetDrawStart" onclick="startBosquetDrawing()">＋ Tracer un bosquet</button>
+            </div>
         </div>
 
         <div class="size-row">
@@ -131,6 +136,12 @@
     </div>
 
     <div id="map"></div>
+
+    <div id="bosquetDrawControls" role="group" aria-label="Tracer le contour du bosquet">
+        <span id="bosquetDrawStatus">Cliquez sur la carte pour placer les sommets du contour.</span>
+        <button class="btn small" id="bosquetDrawFinish" onclick="finishBosquetDrawing()" disabled>Terminer le contour</button>
+        <button class="btn secondary small" onclick="cancelBosquetDrawing()">Annuler</button>
+    </div>
 
     <!-- Page Matériel -->
     <div id="gearPage"></div>
