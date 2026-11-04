@@ -454,19 +454,44 @@
             width: max-content;
             max-width: 220px;
             margin: 0 auto;
-            padding: 5px 9px;
-            border: 1px solid rgba(30, 64, 175, .55);
-            border-radius: 7px;
-            background: rgba(255, 255, 255, .94);
-            box-shadow: 0 1px 5px rgba(15, 23, 42, .35);
-            color: #1e3a8a;
-            font: 700 13px/1.25 Arial, sans-serif;
+            padding: 2px 5px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, .48);
+            color: #334155;
+            font: 600 11px/1.25 Arial, sans-serif;
             text-align: center;
             white-space: normal;
             cursor: default;
+            text-shadow: 0 1px 2px rgba(255, 255, 255, .9);
         }
 
         body.editing .bosquet-label { cursor: pointer; }
+
+        #bosquetVisibilityToggle {
+            position: absolute;
+            top: 210px;
+            right: 15px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 10px;
+            border: 1px solid rgba(71, 85, 105, .2);
+            border-radius: 9px;
+            background: rgba(255, 255, 255, .78);
+            color: #475569;
+            box-shadow: 0 1px 5px rgba(15, 23, 42, .12);
+            font: 600 12px Arial, sans-serif;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+        }
+
+        #bosquetVisibilityToggle[aria-pressed="false"] {
+            background: rgba(255, 255, 255, .58);
+            color: #64748b;
+        }
+
+        #bosquetVisibilityToggle span { font-size: 14px; }
 
         #editTools {
             display: none;
