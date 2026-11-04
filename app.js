@@ -53,6 +53,7 @@
         const MAX_CATEGORIES = SHAPE_KEYS.length;
 
         const NEUTRAL_FILL = "#94a3b8";
+        const BAY_FILL = "#28523d";
 
         function shapeSvg({
             shape = "circle", fill = NEUTRAL_FILL, stroke = "white", label = "", size = 38,
@@ -109,7 +110,7 @@
             return shapeSvg({
                 shape: cat ? cat.shape : "circle",
                 dashed: !cat,
-                fill: type ? type.color : NEUTRAL_FILL,
+                fill: isBay(site) ? BAY_FILL : (type ? type.color : NEUTRAL_FILL),
                 stroke: "white",
                 label: type ? type.label : "",
                 size,
