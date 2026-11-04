@@ -1451,6 +1451,18 @@
             document.getElementById("sidebar").classList.toggle("collapsed");
         }
 
+        document.addEventListener("click", event => {
+            const sidebar = document.getElementById("sidebar");
+            const target = event.target;
+            if (
+                sidebar.classList.contains("collapsed") ||
+                sidebar.contains(target) ||
+                (target instanceof Element && target.closest("#sidebarToggle"))
+            ) return;
+
+            sidebar.classList.add("collapsed");
+        });
+
         /* ============================================================
            Pages : Carte / Matériel
            ============================================================ */
