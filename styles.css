@@ -469,19 +469,19 @@
 
         #bosquetVisibilityToggle {
             position: absolute;
-            top: 210px;
-            right: 15px;
+            top: 14px;
+            right: 90px;
             z-index: 1000;
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 7px 10px;
+            gap: 4px;
+            padding: 5px 8px;
             border: 1px solid rgba(71, 85, 105, .2);
-            border-radius: 9px;
+            border-radius: 7px;
             background: rgba(255, 255, 255, .78);
             color: #475569;
             box-shadow: 0 1px 5px rgba(15, 23, 42, .12);
-            font: 600 12px Arial, sans-serif;
+            font: 600 11px Arial, sans-serif;
             cursor: pointer;
             backdrop-filter: blur(4px);
         }
@@ -491,7 +491,7 @@
             color: #64748b;
         }
 
-        #bosquetVisibilityToggle span { font-size: 14px; }
+        #bosquetVisibilityToggle span { font-size: 12px; }
 
         #editTools {
             display: none;
