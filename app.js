@@ -155,6 +155,7 @@
         let permissionUsers = []; // comptes et autorisations affichés dans Réglages
         let bosquets = [];        // contours des bosquets tracés sur la carte
         const bosquetLayers = {};
+        let bosquetsVisible = localStorage.getItem("gem-bosquets-visible") !== "false";
         const markers = {};       // id du point -> marqueur Leaflet
         let channel = null;       // canal temps réel
         let editMode = false;
@@ -240,6 +241,7 @@
             Object.keys(bosquetLayers).forEach(id => delete bosquetLayers[id]);
 
             bosquets.forEach(bosquet => {
+                if (!bosquetsVisible) return;
                 const coordinates = bosquetCoordinates(bosquet);
                 if (coordinates.length < 3) return;
                 const named = isNamedBosquet(bosquet);
@@ -251,12 +253,12 @@
                 const interactive = adminEditing && !bosquetDrawMode;
                 const polygon = L.polygon(coordinates, {
                     pane: "bosquetHighlightPane",
-                    color: highlighted ? "#eab308" : "#64748b",
-                    weight: highlighted ? 3 : 2,
-                    opacity: highlighted ? .95 : .8,
+                    color: highlighted ? "#8c9c67" : "#64748b",
+                    weight: highlighted ? 2 : 1.5,
+                    opacity: highlighted ? .62 : .48,
                     dashArray: highlighted ? null : "6 6",
                     fillColor: "#a7c17f",
-                    fillOpacity: highlighted ? .24 : 0,
+                    fillOpacity: highlighted ? .10 : 0,
                     interactive
                 }).addTo(map);
 
@@ -279,6 +281,16 @@
                 }
                 bosquetLayers[bosquet.id] = { polygon, label };
             });
+        }
+
+        function toggleBosquetsVisibility() {
+            bosquetsVisible = !bosquetsVisible;
+            localStorage.setItem("gem-bosquets-visible", String(bosquetsVisible));
+            const button = document.getElementById("bosquetVisibilityToggle");
+            button.setAttribute("aria-pressed", String(bosquetsVisible));
+            button.title = bosquetsVisible ? "Masquer les zones et noms des bosquets" : "Afficher les zones et noms des bosquets";
+            button.innerHTML = `<span aria-hidden="true">${bosquetsVisible ? "◉" : "○"}</span> Bosquets`;
+            renderBosquets();
         }
         const hiddenCats = () => new Set((profile && profile.hidden_categories) || []);
         const hiddenTypes = () => new Set((profile && profile.hidden_types) || []);
@@ -2689,6 +2701,13 @@
         }
 
         setAuthMode("login");
+
+        const bosquetVisibilityButton = document.getElementById("bosquetVisibilityToggle");
+        bosquetVisibilityButton.setAttribute("aria-pressed", String(bosquetsVisible));
+        bosquetVisibilityButton.title = bosquetsVisible
+            ? "Masquer les zones et noms des bosquets"
+            : "Afficher les zones et noms des bosquets";
+        bosquetVisibilityButton.innerHTML = `<span aria-hidden="true">${bosquetsVisible ? "◉" : "○"}</span> Bosquets`;
 
         // Curseur de taille : on le cale sur la valeur mémorisée
         document.getElementById("sizeSlider").value = markerSize;
