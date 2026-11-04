@@ -250,7 +250,7 @@
                 const adminEditing = isAdmin() && editMode;
                 if (!highlighted && !adminEditing) return;
 
-                const interactive = adminEditing && !bosquetDrawMode;
+                const interactive = adminEditing && !placing && !bosquetDrawMode && page === "map";
                 const polygon = L.polygon(coordinates, {
                     pane: "bosquetHighlightPane",
                     color: highlighted ? "#8c9c67" : "#64748b",
@@ -2014,7 +2014,7 @@
         }
 
         function openBosquetEditor(bosquetId) {
-            if (!isAdmin() || !editMode) return;
+            if (!isAdmin() || !editMode || placing || bosquetDrawMode || page !== "map") return;
             const bosquet = getBosquet(bosquetId);
             if (!bosquet) return;
             openModal(`
@@ -2649,6 +2649,7 @@
             placing = value;
             document.getElementById("map").classList.toggle("placing", value);
             document.getElementById("addChip").classList.toggle("armed", value);
+            renderBosquets();
         }
 
         function toggleEditMode() {
