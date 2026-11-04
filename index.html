@@ -137,6 +137,11 @@
 
     <div id="map"></div>
 
+    <button id="bosquetVisibilityToggle" type="button" onclick="toggleBosquetsVisibility()"
+            aria-pressed="true" title="Masquer les zones et noms des bosquets">
+        <span aria-hidden="true">◉</span> Bosquets
+    </button>
+
     <div id="bosquetDrawControls" role="group" aria-label="Tracer le contour du bosquet">
         <span id="bosquetDrawStatus">Cliquez sur la carte pour placer les sommets du contour.</span>
         <button class="btn small" id="bosquetDrawFinish" onclick="finishBosquetDrawing()" disabled>Terminer le contour</button>
